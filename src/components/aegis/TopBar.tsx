@@ -1,18 +1,17 @@
 import { Activity, AlertTriangle, ShieldCheck, UserCircle2 } from "lucide-react";
+import { useAegis } from "@/store/aegis";
 
-interface TopBarProps {
-  riskLevel: "low" | "medium" | "high";
-  alerts: number;
-}
+export function TopBar() {
+  const analysis = useAegis((s) => s.analysis);
+  const finalStatus = useAegis((s) => s.finalStatus);
 
-const riskMap = {
-  low: { label: "Low", color: "text-safe", bar: "w-1/4 bg-safe" },
-  medium: { label: "Medium", color: "text-warning", bar: "w-2/3 bg-warning" },
-  high: { label: "High", color: "text-critical", bar: "w-full bg-critical" },
-};
+  const score = analysis?.riskScore ?? 0;
+  const tier = score >= 70 ? { label: "High", color: "text-critical", bar: "bg-critical", w: "100%" }
+    : score >= 30 ? { label: "Medium", color: "text-warning", bar: "bg-warning", w: `${score}%` }
+    : { label: "Low", color: "text-safe", bar: "bg-safe", w: `${Math.max(score, 5)}%` };
 
-export function TopBar({ riskLevel, alerts }: TopBarProps) {
-  const r = riskMap[riskLevel];
+  const alerts = analysis?.flags.filter((f) => f.severity !== "safe").length ?? 0;
+
   return (
     <header className="border-b border-border bg-panel/80 backdrop-blur-xl">
       <div className="flex items-center justify-between px-6 h-14">
@@ -33,8 +32,13 @@ export function TopBar({ riskLevel, alerts }: TopBarProps) {
               <span className="absolute inset-0 rounded-full bg-safe animate-ping opacity-60" />
               <span className="relative rounded-full h-2.5 w-2.5 bg-safe" />
             </span>
-            <span className="text-xs text-muted-foreground">Agent</span>
-            <span className="text-xs font-medium text-safe">ACTIVE</span>
+            <span className="text-xs text-muted-foreground">Status</span>
+            <span className={`text-xs font-semibold ${
+              finalStatus === "BLOCKED" ? "text-critical"
+              : finalStatus === "APPROVED" ? "text-safe"
+              : finalStatus === "UNDER_REVIEW" ? "text-warning"
+              : "text-primary"
+            }`}>{finalStatus.replace("_", " ")}</span>
           </div>
 
           <div className="flex items-center gap-3">
@@ -42,17 +46,19 @@ export function TopBar({ riskLevel, alerts }: TopBarProps) {
             <div className="flex flex-col gap-1">
               <div className="flex items-center gap-2 text-xs">
                 <span className="text-muted-foreground">Live Risk</span>
-                <span className={`font-semibold ${r.color}`}>{r.label}</span>
+                <span className={`font-semibold ${tier.color}`}>{tier.label} · {score}</span>
               </div>
               <div className="h-1.5 w-32 rounded-full bg-secondary overflow-hidden">
-                <div className={`h-full rounded-full transition-all ${r.bar}`} />
+                <div className={`h-full rounded-full transition-all duration-500 ${tier.bar}`} style={{ width: tier.w }} />
               </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-warning/10 border border-warning/30">
-            <AlertTriangle className="h-4 w-4 text-warning" />
-            <span className="text-xs font-medium text-warning">{alerts} anomalies</span>
+          <div className={`flex items-center gap-2 px-3 py-1.5 rounded-md border ${
+            alerts > 0 ? "bg-warning/10 border-warning/30" : "bg-safe/10 border-safe/30"
+          }`}>
+            <AlertTriangle className={`h-4 w-4 ${alerts > 0 ? "text-warning" : "text-safe"}`} />
+            <span className={`text-xs font-medium ${alerts > 0 ? "text-warning" : "text-safe"}`}>{alerts} anomalies</span>
           </div>
 
           <div className="flex items-center gap-2 pl-4 border-l border-border">
