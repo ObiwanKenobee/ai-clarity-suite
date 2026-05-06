@@ -72,15 +72,17 @@ export function RiskCard() {
   );
 }
 
-function Bar({ label, value, color, mono }: { label: string; value: number; color: string; mono?: string }) {
+function Bar({ label, value, color, mono }: { label: string; value: number; color: "primary" | "warning" | "safe"; mono?: string }) {
+  const bg = color === "warning" ? "bg-warning" : color === "safe" ? "bg-safe" : "bg-primary";
+  const text = color === "warning" ? "text-warning" : color === "safe" ? "text-safe" : "";
   return (
     <div>
       <div className="flex justify-between text-[10px] mb-1">
         <span className="text-muted-foreground uppercase tracking-wider">{label}</span>
-        <span className={`font-mono ${color === "warning" ? "text-warning" : color === "safe" ? "text-safe" : ""}`}>{mono ?? `${Math.round(value)}%`}</span>
+        <span className={`font-mono ${text}`}>{mono ?? `${Math.round(value)}%`}</span>
       </div>
       <div className="h-1.5 rounded-full bg-secondary overflow-hidden">
-        <div className={`h-full rounded-full transition-all duration-500 bg-${color}`} style={{ width: `${value}%` }} />
+        <div className={`h-full rounded-full transition-all duration-500 ${bg}`} style={{ width: `${value}%` }} />
       </div>
     </div>
   );
