@@ -13,7 +13,9 @@ export function RiskCard() {
 
   const score = analysis.riskScore;
   const tier = score >= 70 ? "HIGH" : score >= 30 ? "MEDIUM" : "LOW";
-  const tierColor = score >= 70 ? "critical" : score >= 30 ? "warning" : "safe";
+  const tierClass = score >= 70 ? "border-critical/30 bg-critical/10 text-critical"
+    : score >= 30 ? "border-warning/30 bg-warning/10 text-warning"
+    : "border-safe/30 bg-safe/10 text-safe";
   const ring = score >= 70 ? "text-critical" : score >= 30 ? "text-warning" : "text-safe";
 
   return (
