@@ -1,20 +1,22 @@
 import { Check, X, AlertCircle, Sparkles } from "lucide-react";
-
-const trace = [
-  { kind: "ok", text: "Vendor name matches 80% similarity to 'NorthStar Logistics Inc'", weight: 0.18 },
-  { kind: "warn", text: "Amount $9,450 exceeds 90-day vendor average by 35%", weight: 0.31 },
-  { kind: "ok", text: "Invoice schema valid · all required fields present", weight: 0.05 },
-  { kind: "fail", text: "Vendor not found in trusted vendor database", weight: 0.42 },
-  { kind: "ok", text: "No duplicate invoice IDs found in last 180 days", weight: 0.04 },
-];
+import { useAegis } from "@/store/aegis";
 
 const iconMap = {
-  ok: { Icon: Check, cls: "text-safe bg-safe/10 border-safe/30" },
-  warn: { Icon: AlertCircle, cls: "text-warning bg-warning/10 border-warning/30" },
-  fail: { Icon: X, cls: "text-critical bg-critical/10 border-critical/30" },
+  ok: { Icon: Check, cls: "text-safe bg-safe/10 border-safe/30", bar: "bg-safe" },
+  warn: { Icon: AlertCircle, cls: "text-warning bg-warning/10 border-warning/30", bar: "bg-warning" },
+  fail: { Icon: X, cls: "text-critical bg-critical/10 border-critical/30", bar: "bg-critical" },
 } as const;
 
 export function ExplanationPanel() {
+  const analysis = useAegis((s) => s.analysis);
+  if (!analysis) {
+    return (
+      <div className="rounded-xl border border-dashed border-border bg-card/40 p-10 text-center text-xs text-muted-foreground">
+        Reasoning trace will appear after analysis
+      </div>
+    );
+  }
+
   return (
     <div className="rounded-xl border border-border bg-card/60 shadow-panel p-5">
       <div className="flex items-center justify-between mb-4">
@@ -33,8 +35,8 @@ export function ExplanationPanel() {
       </div>
 
       <div className="space-y-2">
-        {trace.map((t, i) => {
-          const { Icon, cls } = iconMap[t.kind as keyof typeof iconMap];
+        {analysis.trace.map((t, i) => {
+          const { Icon, cls, bar } = iconMap[t.kind];
           return (
             <div key={i} className="flex items-center gap-3 group">
               <div className="text-[10px] font-mono text-muted-foreground w-5">{String(i + 1).padStart(2, "0")}</div>
@@ -44,12 +46,7 @@ export function ExplanationPanel() {
               <div className="flex-1 min-w-0 text-xs">{t.text}</div>
               <div className="flex items-center gap-2 shrink-0">
                 <div className="h-1 w-20 rounded-full bg-secondary overflow-hidden">
-                  <div
-                    className={`h-full rounded-full ${
-                      t.kind === "ok" ? "bg-safe" : t.kind === "warn" ? "bg-warning" : "bg-critical"
-                    }`}
-                    style={{ width: `${t.weight * 100}%` }}
-                  />
+                  <div className={`h-full rounded-full ${bar}`} style={{ width: `${t.weight * 100}%` }} />
                 </div>
                 <span className="text-[10px] font-mono text-muted-foreground w-10 text-right">
                   {(t.weight * 100).toFixed(0)}%
@@ -62,11 +59,8 @@ export function ExplanationPanel() {
 
       <div className="mt-5 pt-4 border-t border-border flex items-center justify-between">
         <div className="text-[10px] font-mono text-muted-foreground">
-          Model: aegis-reasoner-v2.4 · 142ms · 5 signals
+          Model: aegis-reasoner-v2.4 · Trace {analysis.traceId} · {analysis.trace.length} signals
         </div>
-        <button className="text-[11px] text-primary hover:underline font-medium">
-          View full reasoning chain →
-        </button>
       </div>
     </div>
   );
