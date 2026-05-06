@@ -1,108 +1,105 @@
-import { FileText, Bot, Lock, ScrollText, Upload, ChevronRight } from "lucide-react";
-
-const sections = [
-  {
-    title: "Inputs",
-    icon: Upload,
-    items: [
-      { name: "INV-2026-0481.pdf", meta: "Just now", active: true },
-      { name: "INV-2026-0480.pdf", meta: "12 min ago" },
-      { name: "INV-2026-0479.pdf", meta: "1 hr ago" },
-    ],
-  },
-  {
-    title: "Agents",
-    icon: Bot,
-    items: [
-      { name: "Invoice Analyzer", meta: "v2.4 · running", dot: "safe" as const },
-      { name: "Decision Agent", meta: "v1.8 · running", dot: "safe" as const },
-      { name: "Vendor Verifier", meta: "v1.2 · idle", dot: "muted" as const },
-    ],
-  },
-  {
-    title: "Policies",
-    icon: Lock,
-    items: [
-      { name: "Max payment $10,000", meta: "Hard limit" },
-      { name: "Unknown vendors → flag", meta: "Active" },
-      { name: "Dual approval > $5k", meta: "Active" },
-    ],
-  },
-  {
-    title: "Audit Logs",
-    icon: ScrollText,
-    items: [
-      { name: "Decision logged", meta: "14:32:08" },
-      { name: "Policy evaluated", meta: "14:32:07" },
-      { name: "Agent invoked", meta: "14:32:05" },
-    ],
-  },
-];
+import { useAegis } from "@/store/aegis";
+import { FileText, Bot, ScrollText, Upload, Lock } from "lucide-react";
 
 export function Sidebar() {
+  const { invoices, currentInvoiceId, selectInvoice, audit, policies } = useAegis();
+  const currentInvoice = invoices.find((i) => i.id === currentInvoiceId);
+
   return (
     <aside className="w-72 shrink-0 border-r border-border bg-panel/40 overflow-y-auto">
       <div className="p-4 space-y-6">
-        {sections.map((section) => (
-          <div key={section.title}>
-            <div className="flex items-center justify-between mb-2 px-1">
-              <div className="flex items-center gap-2">
-                <section.icon className="h-3.5 w-3.5 text-muted-foreground" />
-                <span className="text-[11px] uppercase tracking-[0.15em] text-muted-foreground font-semibold">
-                  {section.title}
-                </span>
-              </div>
-              <ChevronRight className="h-3 w-3 text-muted-foreground" />
-            </div>
-            <div className="space-y-1">
-              {section.items.map((item) => (
-                <button
-                  key={item.name}
-                  className={`w-full text-left group flex items-center justify-between gap-2 px-3 py-2 rounded-md transition-colors border ${
-                    "active" in item && item.active
-                      ? "bg-primary/10 border-primary/30"
-                      : "border-transparent hover:bg-accent/40 hover:border-border"
-                  }`}
-                >
-                  <div className="flex items-center gap-2 min-w-0">
-                    {"dot" in item && item.dot && (
-                      <span
-                        className={`h-1.5 w-1.5 rounded-full ${
-                          item.dot === "safe" ? "bg-safe animate-pulse-ring" : "bg-muted-foreground"
-                        }`}
-                      />
-                    )}
-                    <span className="text-xs font-medium truncate">{item.name}</span>
-                  </div>
-                  <span className="text-[10px] text-muted-foreground shrink-0 font-mono">{item.meta}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        ))}
+        <Section title="Inputs" icon={Upload}>
+          {invoices.map((it) => (
+            <button
+              key={it.id}
+              onClick={() => selectInvoice(it.id)}
+              className={`w-full text-left flex items-center justify-between gap-2 px-3 py-2 rounded-md transition-colors border ${
+                it.id === currentInvoiceId
+                  ? "bg-primary/10 border-primary/30"
+                  : "border-transparent hover:bg-accent/40 hover:border-border"
+              }`}
+            >
+              <span className="text-xs font-medium truncate">{it.fileName}</span>
+              <span className="text-[10px] text-muted-foreground shrink-0 font-mono">
+                ${it.amount.toLocaleString()}
+              </span>
+            </button>
+          ))}
+          {invoices.length === 0 && (
+            <div className="text-[11px] text-muted-foreground px-3 py-2">No invoices yet — upload one above</div>
+          )}
+        </Section>
 
-        <div className="rounded-lg border border-border bg-card/50 p-3 mt-4">
-          <div className="flex items-center gap-2 mb-2">
-            <FileText className="h-3.5 w-3.5 text-primary" />
-            <span className="text-[11px] uppercase tracking-[0.15em] text-muted-foreground font-semibold">
-              Document Preview
-            </span>
+        <Section title="Agents" icon={Bot}>
+          <Item label="Invoice Analyzer" meta="v2.4 · running" dot />
+          <Item label="Decision Agent" meta="v1.8 · running" dot />
+          <Item label="Vendor Verifier" meta="v1.2 · idle" />
+        </Section>
+
+        <Section title="Policies" icon={Lock}>
+          <Item label={`Max payment $${policies.maxPayment.toLocaleString()}`} meta="Hard limit" />
+          <Item label="Unknown vendors" meta={policies.blockUnknownVendors ? "Block" : "Flag"} />
+          <Item label={`Dual approval > $${policies.dualApprovalThreshold.toLocaleString()}`} meta="Active" />
+        </Section>
+
+        <Section title="Audit Log" icon={ScrollText}>
+          {audit.slice(0, 6).map((e) => (
+            <div key={e.id} className="px-3 py-1.5 rounded-md hover:bg-accent/30">
+              <div className="text-[11px] truncate">{e.message}</div>
+              <div className="text-[9px] font-mono text-muted-foreground">
+                {new Date(e.ts).toLocaleTimeString("en-GB", { hour12: false })} · {e.type}
+              </div>
+            </div>
+          ))}
+        </Section>
+
+        {currentInvoice && (
+          <div className="rounded-lg border border-border bg-card/50 p-3 mt-4">
+            <div className="flex items-center gap-2 mb-2">
+              <FileText className="h-3.5 w-3.5 text-primary" />
+              <span className="text-[11px] uppercase tracking-[0.15em] text-muted-foreground font-semibold">
+                Document Preview
+              </span>
+            </div>
+            <div className="aspect-[4/5] rounded bg-background/60 border border-border p-3 text-[8px] font-mono text-muted-foreground space-y-1 overflow-hidden">
+              <div className="font-bold text-foreground/80 text-[10px]">INVOICE #{currentInvoice.invoiceNumber}</div>
+              <div className="h-px bg-border my-1" />
+              <div>From: {currentInvoice.vendor}</div>
+              <div>Date: {currentInvoice.date}</div>
+              <div className="h-px bg-border my-1" />
+              <div className="text-foreground/70 line-clamp-[12] whitespace-pre-wrap break-words">
+                {currentInvoice.rawText.slice(0, 400) || "(no extracted text)"}
+              </div>
+              <div className="h-px bg-border my-1" />
+              <div className="text-warning font-bold">TOTAL: ${currentInvoice.amount.toLocaleString()}</div>
+            </div>
           </div>
-          <div className="aspect-[4/5] rounded bg-background/60 border border-border p-3 text-[8px] font-mono text-muted-foreground space-y-1 overflow-hidden">
-            <div className="font-bold text-foreground/80 text-[10px]">INVOICE #2026-0481</div>
-            <div className="h-px bg-border my-1" />
-            <div>From: NorthStar Logistics LTD</div>
-            <div>To: Acme Industries</div>
-            <div>Date: 2026-05-06</div>
-            <div className="h-px bg-border my-1" />
-            <div>Consulting svc... $4,200</div>
-            <div>Express freight... $3,800</div>
-            <div>Handling fee...... $1,450</div>
-            <div className="h-px bg-border my-1" />
-            <div className="text-warning font-bold">TOTAL: $9,450.00</div>
-          </div>
-        </div>
+        )}
       </div>
     </aside>
+  );
+}
+
+function Section({ title, icon: Icon, children }: { title: string; icon: React.ElementType; children: React.ReactNode }) {
+  return (
+    <div>
+      <div className="flex items-center gap-2 mb-2 px-1">
+        <Icon className="h-3.5 w-3.5 text-muted-foreground" />
+        <span className="text-[11px] uppercase tracking-[0.15em] text-muted-foreground font-semibold">{title}</span>
+      </div>
+      <div className="space-y-1">{children}</div>
+    </div>
+  );
+}
+
+function Item({ label, meta, dot }: { label: string; meta: string; dot?: boolean }) {
+  return (
+    <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-md hover:bg-accent/30">
+      <div className="flex items-center gap-2 min-w-0">
+        {dot && <span className="h-1.5 w-1.5 rounded-full bg-safe animate-pulse-ring" />}
+        <span className="text-xs font-medium truncate">{label}</span>
+      </div>
+      <span className="text-[10px] text-muted-foreground shrink-0 font-mono">{meta}</span>
+    </div>
   );
 }
