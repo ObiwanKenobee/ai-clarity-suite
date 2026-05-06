@@ -25,7 +25,7 @@ export function RiskCard() {
           <h2 className="text-sm font-semibold tracking-tight">Risk Analysis</h2>
           <p className="text-xs text-muted-foreground">Multi-signal aggregate scoring</p>
         </div>
-        <div className={`px-2 py-1 rounded-md border text-[10px] font-bold tracking-wider border-${tierColor}/30 bg-${tierColor}/10 text-${tierColor}`}>
+        <div className={`px-2 py-1 rounded-md border text-[10px] font-bold tracking-wider ${tierClass}`}>
           {tier}
         </div>
       </div>
