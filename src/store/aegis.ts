@@ -240,3 +240,23 @@ export const useAegis = create<AegisState>((set, get) => ({
       return { byInvoice: { ...s.byInvoice, [id]: { ...initialInvoiceState } } };
     }),
 }));
+
+// ----- Convenience selector hooks -----
+export const useCurrentInvoice = () =>
+  useAegis((s) => (s.currentInvoiceId ? s.invoices.find((i) => i.id === s.currentInvoiceId) ?? null : null));
+
+export const useCurrentAnalysis = (): Analysis | null =>
+  useAegis((s) => (s.currentInvoiceId ? s.byInvoice[s.currentInvoiceId]?.analysis ?? null : null));
+
+export const useCurrentFinalStatus = (): FinalStatus =>
+  useAegis((s) => (s.currentInvoiceId ? s.byInvoice[s.currentInvoiceId]?.finalStatus ?? "PENDING" : "PENDING"));
+
+export const useCurrentUserAction = (): UserAction | null =>
+  useAegis((s) => (s.currentInvoiceId ? s.byInvoice[s.currentInvoiceId]?.lastUserAction ?? null : null));
+
+export const useCurrentAudit = (): AuditEntry[] =>
+  useAegis((s) => {
+    const id = s.currentInvoiceId;
+    if (!id) return s.audit;
+    return s.audit.filter((e) => e.invoiceId === id || (e.invoiceId == null && e.type === "POLICY_CHANGE"));
+  });
