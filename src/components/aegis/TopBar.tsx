@@ -1,9 +1,9 @@
 import { Activity, AlertTriangle, ShieldCheck, UserCircle2 } from "lucide-react";
-import { useAegis } from "@/store/aegis";
+import { useCurrentAnalysis, useCurrentFinalStatus } from "@/store/aegis";
 
 export function TopBar() {
-  const analysis = useAegis((s) => s.analysis);
-  const finalStatus = useAegis((s) => s.finalStatus);
+  const analysis = useCurrentAnalysis();
+  const finalStatus = useCurrentFinalStatus();
 
   const score = analysis?.riskScore ?? 0;
   const tier = score >= 70 ? { label: "High", color: "text-critical", bar: "bg-critical", w: "100%" }

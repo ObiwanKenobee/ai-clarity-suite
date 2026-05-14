@@ -1,14 +1,15 @@
 import { AlertTriangle, X } from "lucide-react";
 import { useEffect, useState } from "react";
-import { useAegis } from "@/store/aegis";
+import { useAegis, useCurrentAnalysis, useCurrentInvoice } from "@/store/aegis";
 
 export function AlertModal() {
-  const { alertOpen, closeAlert, resolveAlert, analysis, invoices, currentInvoiceId } = useAegis();
+  const { alertOpen, closeAlert, resolveAlert } = useAegis();
+  const analysis = useCurrentAnalysis();
+  const inv = useCurrentInvoice();
   const [mounted, setMounted] = useState(false);
   useEffect(() => { if (alertOpen) setMounted(true); else setMounted(false); }, [alertOpen]);
 
   if (!alertOpen || !analysis) return null;
-  const inv = invoices.find((i) => i.id === currentInvoiceId);
   const topFlags = analysis.flags.filter((f) => f.severity !== "safe").slice(0, 3);
 
   return (

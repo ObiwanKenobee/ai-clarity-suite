@@ -1,5 +1,5 @@
 import { Check, X, AlertCircle, Sparkles } from "lucide-react";
-import { useAegis } from "@/store/aegis";
+import { useCurrentAnalysis } from "@/store/aegis";
 
 const iconMap = {
   ok: { Icon: Check, cls: "text-safe bg-safe/10 border-safe/30", bar: "bg-safe" },
@@ -8,7 +8,7 @@ const iconMap = {
 } as const;
 
 export function ExplanationPanel() {
-  const analysis = useAegis((s) => s.analysis);
+  const analysis = useCurrentAnalysis();
   if (!analysis) {
     return (
       <div className="rounded-xl border border-dashed border-border bg-card/40 p-10 text-center text-xs text-muted-foreground">

@@ -38,9 +38,9 @@ export interface NodeOutput {
 }
 
 export interface Analysis {
-  riskScore: number; // 0-100
-  confidence: number; // 0-100
-  anomalyIndex: number; // 0-1
+  riskScore: number;
+  confidence: number;
+  anomalyIndex: number;
   policyCompliancePassed: number;
   policyComplianceTotal: number;
   flags: Flag[];
@@ -54,10 +54,12 @@ export interface Policies {
   maxPayment: number;
   blockUnknownVendors: boolean;
   dualApprovalThreshold: number;
-  amountAnomalyMultiplier: number; // x times vendor avg → flag
+  amountAnomalyMultiplier: number;
   knownVendors: string[];
   vendorAverages: Record<string, number>;
 }
+
+export type PolicySnapshot = Omit<Policies, "knownVendors" | "vendorAverages">;
 
 export interface AuditEntry {
   id: string;
@@ -66,28 +68,37 @@ export interface AuditEntry {
   actor: string;
   message: string;
   meta?: Record<string, unknown>;
+  invoiceId?: string | null;
+  policiesSnapshot?: PolicySnapshot;
+  policyChecksSnapshot?: { name: string; passed: boolean }[];
 }
 
 export type UserAction = "review" | "block" | "approve";
+export type FinalStatus = "PENDING" | "APPROVED" | "BLOCKED" | "UNDER_REVIEW";
+
+interface InvoiceState {
+  analysis: Analysis | null;
+  finalStatus: FinalStatus;
+  lastUserAction: UserAction | null;
+}
 
 interface AegisState {
   invoices: Invoice[];
   currentInvoiceId: string | null;
-  analysis: Analysis | null;
+  byInvoice: Record<string, InvoiceState>;
   policies: Policies;
   audit: AuditEntry[];
   alertOpen: boolean;
-  lastUserAction: UserAction | null;
-  finalStatus: "PENDING" | "APPROVED" | "BLOCKED" | "UNDER_REVIEW";
 
   addInvoice: (invoice: Invoice) => void;
   selectInvoice: (id: string) => void;
   setAnalysis: (a: Analysis) => void;
   updatePolicy: <K extends keyof Policies>(key: K, value: Policies[K]) => void;
-  log: (entry: Omit<AuditEntry, "id" | "ts">) => void;
+  log: (entry: Omit<AuditEntry, "id" | "ts" | "policiesSnapshot" | "invoiceId"> & { invoiceId?: string | null }) => void;
   openAlert: () => void;
   closeAlert: () => void;
   resolveAlert: (action: UserAction) => void;
+  auditForInvoice: (id: string | null) => AuditEntry[];
   reset: () => void;
 }
 
@@ -115,10 +126,21 @@ const initialPolicies: Policies = {
   },
 };
 
+function snapshot(p: Policies): PolicySnapshot {
+  return {
+    maxPayment: p.maxPayment,
+    blockUnknownVendors: p.blockUnknownVendors,
+    dualApprovalThreshold: p.dualApprovalThreshold,
+    amountAnomalyMultiplier: p.amountAnomalyMultiplier,
+  };
+}
+
+const initialInvoiceState: InvoiceState = { analysis: null, finalStatus: "PENDING", lastUserAction: null };
+
 export const useAegis = create<AegisState>((set, get) => ({
   invoices: [seedInvoice],
   currentInvoiceId: seedInvoice.id,
-  analysis: null,
+  byInvoice: { [seedInvoice.id]: { ...initialInvoiceState } },
   policies: initialPolicies,
   audit: [
     {
@@ -127,42 +149,81 @@ export const useAegis = create<AegisState>((set, get) => ({
       type: "UPLOAD",
       actor: "system",
       message: `Seed invoice ${seedInvoice.fileName} loaded`,
+      invoiceId: seedInvoice.id,
+      policiesSnapshot: snapshot(initialPolicies),
     },
   ],
   alertOpen: false,
-  lastUserAction: null,
-  finalStatus: "PENDING",
+
+  get analysis() {
+    const id = get().currentInvoiceId;
+    return id ? get().byInvoice[id]?.analysis ?? null : null;
+  },
+  get finalStatus() {
+    const id = get().currentInvoiceId;
+    return id ? get().byInvoice[id]?.finalStatus ?? "PENDING" : "PENDING";
+  },
+  get lastUserAction() {
+    const id = get().currentInvoiceId;
+    return id ? get().byInvoice[id]?.lastUserAction ?? null : null;
+  },
 
   addInvoice: (invoice) =>
     set((s) => ({
       invoices: [invoice, ...s.invoices.filter((i) => i.id !== invoice.id)],
       currentInvoiceId: invoice.id,
-      finalStatus: "PENDING",
-      lastUserAction: null,
+      byInvoice: { ...s.byInvoice, [invoice.id]: { ...initialInvoiceState } },
     })),
   selectInvoice: (id) => set({ currentInvoiceId: id }),
-  setAnalysis: (a) => set({ analysis: a }),
+  setAnalysis: (a) =>
+    set((s) => {
+      const id = s.currentInvoiceId;
+      if (!id) return {};
+      const prev = s.byInvoice[id] ?? { ...initialInvoiceState };
+      return { byInvoice: { ...s.byInvoice, [id]: { ...prev, analysis: a } } };
+    }),
   updatePolicy: (key, value) => {
     set((s) => ({ policies: { ...s.policies, [key]: value } }));
     get().log({
       type: "POLICY_CHANGE",
       actor: "M. Chen",
-      message: `Policy "${String(key)}" changed`,
+      message: `Policy "${String(key)}" changed → ${String(value)}`,
       meta: { key, value },
     });
   },
-  log: (entry) =>
-    set((s) => ({
+  log: (entry) => {
+    const s = get();
+    const invoiceId = entry.invoiceId !== undefined ? entry.invoiceId : s.currentInvoiceId;
+    const inv = invoiceId ? s.byInvoice[invoiceId] : null;
+    const checks = inv?.analysis?.nodes.find((n) => n.id === "decision")?.policyChecks
+      ?.map((c) => ({ name: c.name, passed: c.passed }));
+    set((st) => ({
       audit: [
-        { id: crypto.randomUUID(), ts: new Date().toISOString(), ...entry },
-        ...s.audit,
+        {
+          id: crypto.randomUUID(),
+          ts: new Date().toISOString(),
+          policiesSnapshot: snapshot(st.policies),
+          policyChecksSnapshot: checks,
+          invoiceId,
+          ...entry,
+        },
+        ...st.audit,
       ].slice(0, 500),
-    })),
+    }));
+  },
   openAlert: () => set({ alertOpen: true }),
   closeAlert: () => set({ alertOpen: false }),
   resolveAlert: (action) => {
     const map = { review: "UNDER_REVIEW", block: "BLOCKED", approve: "APPROVED" } as const;
-    set({ alertOpen: false, lastUserAction: action, finalStatus: map[action] });
+    set((s) => {
+      const id = s.currentInvoiceId;
+      if (!id) return { alertOpen: false };
+      const prev = s.byInvoice[id] ?? { ...initialInvoiceState };
+      return {
+        alertOpen: false,
+        byInvoice: { ...s.byInvoice, [id]: { ...prev, lastUserAction: action, finalStatus: map[action] } },
+      };
+    });
     get().log({
       type: "USER_ACTION",
       actor: "M. Chen",
@@ -170,5 +231,32 @@ export const useAegis = create<AegisState>((set, get) => ({
       meta: { action, finalStatus: map[action] },
     });
   },
-  reset: () => set({ analysis: null, finalStatus: "PENDING", lastUserAction: null }),
+  auditForInvoice: (id) =>
+    id ? get().audit.filter((e) => e.invoiceId === id || e.invoiceId == null && e.type === "POLICY_CHANGE") : get().audit,
+  reset: () =>
+    set((s) => {
+      const id = s.currentInvoiceId;
+      if (!id) return {};
+      return { byInvoice: { ...s.byInvoice, [id]: { ...initialInvoiceState } } };
+    }),
 }));
+
+// ----- Convenience selector hooks -----
+export const useCurrentInvoice = () =>
+  useAegis((s) => (s.currentInvoiceId ? s.invoices.find((i) => i.id === s.currentInvoiceId) ?? null : null));
+
+export const useCurrentAnalysis = (): Analysis | null =>
+  useAegis((s) => (s.currentInvoiceId ? s.byInvoice[s.currentInvoiceId]?.analysis ?? null : null));
+
+export const useCurrentFinalStatus = (): FinalStatus =>
+  useAegis((s) => (s.currentInvoiceId ? s.byInvoice[s.currentInvoiceId]?.finalStatus ?? "PENDING" : "PENDING"));
+
+export const useCurrentUserAction = (): UserAction | null =>
+  useAegis((s) => (s.currentInvoiceId ? s.byInvoice[s.currentInvoiceId]?.lastUserAction ?? null : null));
+
+export const useCurrentAudit = (): AuditEntry[] =>
+  useAegis((s) => {
+    const id = s.currentInvoiceId;
+    if (!id) return s.audit;
+    return s.audit.filter((e) => e.invoiceId === id || (e.invoiceId == null && e.type === "POLICY_CHANGE"));
+  });

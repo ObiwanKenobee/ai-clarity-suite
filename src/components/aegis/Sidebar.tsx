@@ -1,30 +1,49 @@
-import { useAegis } from "@/store/aegis";
+import { useAegis, useCurrentInvoice, useCurrentAudit, useCurrentAnalysis, useCurrentFinalStatus } from "@/store/aegis";
 import { FileText, Bot, ScrollText, Upload, Lock } from "lucide-react";
 
 export function Sidebar() {
-  const { invoices, currentInvoiceId, selectInvoice, audit, policies } = useAegis();
-  const currentInvoice = invoices.find((i) => i.id === currentInvoiceId);
+  const { invoices, currentInvoiceId, selectInvoice, byInvoice, policies } = useAegis();
+  const currentInvoice = useCurrentInvoice();
+  const audit = useCurrentAudit();
+  const analysis = useCurrentAnalysis();
+  const finalStatus = useCurrentFinalStatus();
 
   return (
     <aside className="w-72 shrink-0 border-r border-border bg-panel/40 overflow-y-auto">
       <div className="p-4 space-y-6">
-        <Section title="Inputs" icon={Upload}>
-          {invoices.map((it) => (
-            <button
-              key={it.id}
-              onClick={() => selectInvoice(it.id)}
-              className={`w-full text-left flex items-center justify-between gap-2 px-3 py-2 rounded-md transition-colors border ${
-                it.id === currentInvoiceId
-                  ? "bg-primary/10 border-primary/30"
-                  : "border-transparent hover:bg-accent/40 hover:border-border"
-              }`}
-            >
-              <span className="text-xs font-medium truncate">{it.fileName}</span>
-              <span className="text-[10px] text-muted-foreground shrink-0 font-mono">
-                ${it.amount.toLocaleString()}
-              </span>
-            </button>
-          ))}
+        <Section title={`Invoices (${invoices.length})`} icon={Upload}>
+          {invoices.map((it) => {
+            const a = byInvoice[it.id]?.analysis;
+            const status = byInvoice[it.id]?.finalStatus ?? "PENDING";
+            const dot = !a ? "bg-muted-foreground"
+              : a.decision === "BLOCKED" ? "bg-critical"
+              : a.decision === "APPROVED_WITH_WARNING" ? "bg-warning"
+              : "bg-safe";
+            return (
+              <button
+                key={it.id}
+                onClick={() => selectInvoice(it.id)}
+                className={`w-full text-left flex items-start justify-between gap-2 px-3 py-2 rounded-md transition-colors border ${
+                  it.id === currentInvoiceId
+                    ? "bg-primary/10 border-primary/30"
+                    : "border-transparent hover:bg-accent/40 hover:border-border"
+                }`}
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5">
+                    <span className={`h-1.5 w-1.5 rounded-full ${dot}`} />
+                    <span className="text-xs font-medium truncate">{it.fileName}</span>
+                  </div>
+                  <div className="text-[9px] text-muted-foreground font-mono mt-0.5 truncate">
+                    {it.vendor} · {a ? `risk ${a.riskScore}` : "unanalyzed"} · {status.replace("_", " ").toLowerCase()}
+                  </div>
+                </div>
+                <span className="text-[10px] text-muted-foreground shrink-0 font-mono pt-0.5">
+                  ${it.amount.toLocaleString()}
+                </span>
+              </button>
+            );
+          })}
           {invoices.length === 0 && (
             <div className="text-[11px] text-muted-foreground px-3 py-2">No invoices yet — upload one above</div>
           )}
@@ -42,8 +61,8 @@ export function Sidebar() {
           <Item label={`Dual approval > $${policies.dualApprovalThreshold.toLocaleString()}`} meta="Active" />
         </Section>
 
-        <Section title="Audit Log" icon={ScrollText}>
-          {audit.slice(0, 6).map((e) => (
+        <Section title={`Audit Log${currentInvoice ? ` · ${currentInvoice.invoiceNumber}` : ""}`} icon={ScrollText}>
+          {audit.slice(0, 8).map((e) => (
             <div key={e.id} className="px-3 py-1.5 rounded-md hover:bg-accent/30">
               <div className="text-[11px] truncate">{e.message}</div>
               <div className="text-[9px] font-mono text-muted-foreground">
@@ -51,6 +70,9 @@ export function Sidebar() {
               </div>
             </div>
           ))}
+          {audit.length === 0 && (
+            <div className="text-[10px] text-muted-foreground px-3 py-1.5">No entries for this invoice yet.</div>
+          )}
         </Section>
 
         {currentInvoice && (
@@ -60,6 +82,11 @@ export function Sidebar() {
               <span className="text-[11px] uppercase tracking-[0.15em] text-muted-foreground font-semibold">
                 Document Preview
               </span>
+              {analysis && (
+                <span className="ml-auto text-[9px] font-mono text-muted-foreground">
+                  {finalStatus.replace("_", " ").toLowerCase()}
+                </span>
+              )}
             </div>
             <div className="aspect-[4/5] rounded bg-background/60 border border-border p-3 text-[8px] font-mono text-muted-foreground space-y-1 overflow-hidden">
               <div className="font-bold text-foreground/80 text-[10px]">INVOICE #{currentInvoice.invoiceNumber}</div>
