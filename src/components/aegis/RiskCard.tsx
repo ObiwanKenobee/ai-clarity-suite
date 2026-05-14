@@ -1,4 +1,4 @@
-import { useAegis } from "@/store/aegis";
+import { useCurrentAnalysis } from "@/store/aegis";
 import { AlertTriangle, TrendingUp, ShieldAlert, ShieldCheck } from "lucide-react";
 
 const sevColor: Record<string, string> = {
@@ -8,7 +8,7 @@ const sevColor: Record<string, string> = {
 };
 
 export function RiskCard() {
-  const analysis = useAegis((s) => s.analysis);
+  const analysis = useCurrentAnalysis();
   if (!analysis) return <Empty />;
 
   const score = analysis.riskScore;
