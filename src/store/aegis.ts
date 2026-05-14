@@ -90,11 +90,6 @@ interface AegisState {
   audit: AuditEntry[];
   alertOpen: boolean;
 
-  // derived getters
-  analysis: Analysis | null;
-  finalStatus: FinalStatus;
-  lastUserAction: UserAction | null;
-
   addInvoice: (invoice: Invoice) => void;
   selectInvoice: (id: string) => void;
   setAnalysis: (a: Analysis) => void;
