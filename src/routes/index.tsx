@@ -7,7 +7,10 @@ import { RiskCard } from "@/components/aegis/RiskCard";
 import { ExplanationPanel } from "@/components/aegis/ExplanationPanel";
 import { AlertModal } from "@/components/aegis/AlertModal";
 import { PolicyPanel } from "@/components/aegis/PolicyPanel";
-import { useAegis } from "@/store/aegis";
+import {
+  useAegis, useCurrentInvoice, useCurrentAnalysis,
+  useCurrentFinalStatus, useCurrentUserAction, useCurrentAudit,
+} from "@/store/aegis";
 import { analyzeInvoice } from "@/lib/aegis-engine";
 import { parseInvoicePdf } from "@/lib/pdf-parser";
 import { exportJson, exportCsv, exportPdf } from "@/lib/audit-export";
@@ -26,31 +29,29 @@ export const Route = createFileRoute("/")({
 });
 
 function Dashboard() {
-  const {
-    invoices, currentInvoiceId, addInvoice, setAnalysis, policies, log,
-    analysis, openAlert, finalStatus, lastUserAction, audit,
-  } = useAegis();
+  const { addInvoice, setAnalysis, policies, log, openAlert, currentInvoiceId } = useAegis();
+  const inv = useCurrentInvoice();
+  const analysis = useCurrentAnalysis();
+  const finalStatus = useCurrentFinalStatus();
+  const lastUserAction = useCurrentUserAction();
+  const audit = useCurrentAudit();
   const [busy, setBusy] = useState(false);
   const [exportMenu, setExportMenu] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
-  const seeded = useRef(false);
+  const seededOnce = useRef(false);
 
-  // initial analyze of seed
+  // auto-analyze whenever the selected invoice has no analysis yet
   useEffect(() => {
-    if (seeded.current) return;
-    seeded.current = true;
-    const inv = invoices.find((i) => i.id === currentInvoiceId);
     if (!inv || analysis) return;
     const a = analyzeInvoice(inv, policies);
     setAnalysis(a);
     log({ type: "ANALYSIS", actor: "engine", message: `Analyzed ${inv.fileName} → ${a.decision}`, meta: { riskScore: a.riskScore } });
-    if (a.decision !== "APPROVED") {
+    if (a.decision !== "APPROVED" && !seededOnce.current) {
+      seededOnce.current = true;
       const t = setTimeout(() => openAlert(), 1200);
       return () => clearTimeout(t);
     }
-  }, [invoices, currentInvoiceId, analysis, policies, setAnalysis, log, openAlert]);
-
-  const inv = invoices.find((i) => i.id === currentInvoiceId);
+  }, [inv, analysis, policies, setAnalysis, log, openAlert]);
 
   async function handleFile(file: File) {
     setBusy(true);
@@ -58,12 +59,13 @@ function Dashboard() {
       log({ type: "UPLOAD", actor: "M. Chen", message: `Uploading ${file.name}` });
       const parsed = await parseInvoicePdf(file);
       addInvoice(parsed);
-      log({ type: "ANALYSIS", actor: "engine", message: `Parsed ${parsed.fileName} · vendor "${parsed.vendor}" · $${parsed.amount.toLocaleString()}` });
+      log({ type: "ANALYSIS", actor: "engine", message: `Parsed ${parsed.fileName} · vendor "${parsed.vendor}" · $${parsed.amount.toLocaleString()}`, invoiceId: parsed.id });
       const a = analyzeInvoice(parsed, policies);
+      // setAnalysis writes to the just-selected invoice (addInvoice set it as current)
       setAnalysis(a);
-      log({ type: "DECISION", actor: "engine", message: `Decision: ${a.decision} (risk ${a.riskScore})`, meta: { traceId: a.traceId } });
+      log({ type: "DECISION", actor: "engine", message: `Decision: ${a.decision} (risk ${a.riskScore})`, meta: { traceId: a.traceId }, invoiceId: parsed.id });
       if (a.decision !== "APPROVED") {
-        log({ type: "ALERT", actor: "engine", message: `Alert raised for ${parsed.fileName}` });
+        log({ type: "ALERT", actor: "engine", message: `Alert raised for ${parsed.fileName}`, invoiceId: parsed.id });
         setTimeout(() => openAlert(), 400);
       }
     } catch (err) {
@@ -78,7 +80,7 @@ function Dashboard() {
     if (kind === "json") exportJson(data);
     if (kind === "csv") exportCsv(data);
     if (kind === "pdf") exportPdf(data);
-    log({ type: "USER_ACTION", actor: "M. Chen", message: `Audit trail exported as ${kind.toUpperCase()}` });
+    log({ type: "USER_ACTION", actor: "M. Chen", message: `Audit trail exported as ${kind.toUpperCase()} (invoice ${inv?.invoiceNumber ?? "—"})` });
     setExportMenu(false);
   }
 
